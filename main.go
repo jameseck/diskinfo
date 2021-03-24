@@ -17,38 +17,24 @@ import (
 	"github.com/lensesio/tableprinter"
 )
 
-type Disk struct {
-	Disk       string `header:"disk"`
-	Md         string `header:"md"`
-	Lvm        string `header:"lvm"`
-	Zfs        string `header:"zfs"`
-	Luks       string `header:"luks"`
-	Size       string `header:"size"`
-	Ssd        string `header:"ssd/nvme"`
-	InUse      string `header:"in use"`
-	LocalMount string `header:"localmount"`
-	ID         string `header:"id"`
-	Slot       string `header:"slot"`
-}
-
 // rows << ['Disk', 'md', 'lvm', 'zfs', 'luks', 'Size', 'SSD?', 'In Use', 'Local Mount?', 'ID', 'Slot']
 
 type Blockdevice struct {
-	Name       string        `json:"name" header:"disk"`
-	Fstype     string        `json:"fstype"`
-	Label      string        `json:"label"`
-	Uuid       string        `json:"uuid"`
-	Mountpoint string        `json:"mountpoint" header:"mountpoint"`
-	Md         string        `header:"md"`
-	Lvm        string        `header:"lvm"`
-	Zfs        string        `header:"zfs"`
-	Luks       string        `header:"luks"`
-	Size       string        `header:"size"`
-	Ssd        string        `header:"ssd/nvme"`
-	InUse      string        `header:"in use"`
-	ID         string        `header:"id"`
-	Slot       string        `header:"slot"`
-	Children   []Blockdevice `json:"children"`
+	Name        string        `json:"name" header:"disk"`
+	Fstype      string        `json:"fstype"`
+	Label       string        `json:"label"`
+	Uuid        string        `json:"uuid"`
+	Mountpoint  string        `json:"mountpoint" header:"mountpoint"`
+	Md          string        `header:"md"`
+	Lvm         string        `header:"lvm"`
+	Zfs         string        `header:"zfs"`
+	Luks        string        `header:"luks"`
+	Size        string        `header:"size,number"`
+	Ssd         string        `header:"ssd/nvme"`
+	InUse       string        `header:"in use"`
+	VendorModel string        `header:"vendor/model"`
+	Slot        string        `header:"slot"`
+	Children    []Blockdevice `json:"children"`
 }
 
 type Lsblk struct {
@@ -90,6 +76,12 @@ func main() {
 			blk.Blockdevices[f].Ssd = "Y"
 		}
 
+		xv, _ := ioutil.ReadFile(fmt.Sprintf("/sys/block/%s/device/vendor", blk.Blockdevices[f].Name))
+		xvs := strings.Replace(string(xv), "\n", "", -1)
+		xm, _ := ioutil.ReadFile(fmt.Sprintf("/sys/block/%s/device/model", blk.Blockdevices[f].Name))
+		xms := strings.Replace(string(xm), "\n", "", -1)
+		blk.Blockdevices[f].VendorModel = fmt.Sprintf("%s %s", xvs, xms)
+
 		for c := range blk.Blockdevices[f].Children {
 			if blk.Blockdevices[f].Children[c].Fstype == "zfs_member" {
 				blk.Blockdevices[f].Zfs = blk.Blockdevices[f].Children[c].Label
@@ -106,6 +98,7 @@ func main() {
 		//blk.Blockdevices[f].Ssd := isSsd(blk.Blockdevices[f].Name)
 		//blk.Blockdevices[f].inUse := inUse(blk.Blockdevices[f].Name)
 		//blk.Blockdevices[f].id := id(blk.Blockdevices[f].Name)
+		blk.Blockdevices[f].InUse = InUse(&blk.Blockdevices[f])
 
 	}
 
@@ -119,7 +112,7 @@ func main() {
 	printer.RowSeparator = "─"
 	printer.HeaderBgColor = tablewriter.BgBlackColor
 	printer.HeaderFgColor = tablewriter.FgGreenColor
-	printer.DefaultAlignment = tableprinter.AlignRight // Set Alignment
+	printer.DefaultAlignment = tableprinter.AlignLeft // Set Alignment
 
 	// Print the slice of structs as table, as shown above.
 	printer.Print(blk.Blockdevices)
@@ -152,32 +145,12 @@ func lsblk(r *regexp.Regexp) (out Lsblk) {
 	return out
 }
 
-func isMd(device string) string {
-	return "N"
-}
-func isLvm(device string) string {
-	return "N"
-}
-func isZfs(blk *Lsblk) string {
-	return "N"
-}
-func isLuks(device string) string {
-	return "N"
-}
-func isSsd(device string) string {
-	return "N"
-}
-func inUse(device string) string {
-	return "N"
-}
-func localMount(device string) string {
-	return "N"
-}
-func id(device string) string {
-	return "N"
-}
-func slot(device string) string {
-	return "N"
+func InUse(device *Blockdevice) string {
+	// Check if luks, md, pv, zfs, etc etc
+	if (device.Zfs != "") || (device.Label != "") || device.Fstype != "" || device.Mountpoint != "" || device.Md != "" || device.Lvm != "" || device.Luks != "" {
+		return "Y"
+	}
+	return ""
 }
 
 func getDevices(dir string, r *regexp.Regexp) (names []string, err error) {
