@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
+	"path/filepath"
 	//	"log"
 	"os"
 	"os/exec"
@@ -23,7 +24,7 @@ type Disk struct {
 	Zfs        string `header:"zfs"`
 	Luks       string `header:"luks"`
 	Size       string `header:"size"`
-	Ssd        string `header:"ssd"`
+	Ssd        string `header:"ssd/nvme"`
 	InUse      string `header:"in use"`
 	LocalMount string `header:"localmount"`
 	ID         string `header:"id"`
@@ -33,20 +34,21 @@ type Disk struct {
 // rows << ['Disk', 'md', 'lvm', 'zfs', 'luks', 'Size', 'SSD?', 'In Use', 'Local Mount?', 'ID', 'Slot']
 
 type Blockdevice struct {
-	Name       string `json:"name" header:"disk"`
-	Fstype     string `json:"fstype"`
-	Label      string `json:"label"`
-	Uuid       string `json:"uuid"`
-	Mountpoint string `json:"mountpoint" header:"mountpoint"`
-	Md         string `header:"md"`
-	Lvm        string `header:"lvm"`
-	Zfs        string `header:"zfs"`
-	Luks       string `header:"luks"`
-	Size       string `header:"size"`
-	Ssd        string `header:"ssd"`
-	InUse      string `header:"in use"`
-	ID         string `header:"id"`
-	Slot       string `header:"slot"`
+	Name       string        `json:"name" header:"disk"`
+	Fstype     string        `json:"fstype"`
+	Label      string        `json:"label"`
+	Uuid       string        `json:"uuid"`
+	Mountpoint string        `json:"mountpoint" header:"mountpoint"`
+	Md         string        `header:"md"`
+	Lvm        string        `header:"lvm"`
+	Zfs        string        `header:"zfs"`
+	Luks       string        `header:"luks"`
+	Size       string        `header:"size"`
+	Ssd        string        `header:"ssd/nvme"`
+	InUse      string        `header:"in use"`
+	ID         string        `header:"id"`
+	Slot       string        `header:"slot"`
+	Children   []Blockdevice `json:"children"`
 }
 
 type Lsblk struct {
@@ -59,16 +61,51 @@ func main() {
 
 	blk := lsblk(r)
 
+	// Gather enclosure info
+	enc, _ := filepath.Glob("/sys/class/enclosure/*/*/device/block/*")
+
+	var enclosureDevices map[string]string
+	enclosureDevices = make(map[string]string)
+
+	for d := range enc {
+		encS := strings.Split(enc[d], "/")
+		encAddr := encS[4]
+		deviceSlot := encS[5]
+		deviceName := encS[8]
+		enclosureDevices[deviceName] = fmt.Sprintf("%s/%s", encAddr, deviceSlot)
+	}
+	// TODO: Maybe extract enclosure model instead of PCI addr
+
 	for f := range blk.Blockdevices {
 		blk.Blockdevices[f].Size, _ = getDiskSizeGB(blk.Blockdevices[f].Name)
+		if blk.Blockdevices[f].Fstype == "zfs_member" {
+			blk.Blockdevices[f].Zfs = blk.Blockdevices[f].Label
+		}
+
+		y, _ := ioutil.ReadFile(fmt.Sprintf("/sys/block/%s/queue/rotational", blk.Blockdevices[f].Name))
+		s := strings.Replace(string(y), "\n", "", -1)
+		if s == "1" {
+			blk.Blockdevices[f].Ssd = ""
+		} else {
+			blk.Blockdevices[f].Ssd = "Y"
+		}
+
+		for c := range blk.Blockdevices[f].Children {
+			if blk.Blockdevices[f].Children[c].Fstype == "zfs_member" {
+				blk.Blockdevices[f].Zfs = blk.Blockdevices[f].Children[c].Label
+			}
+		}
+
+		blk.Blockdevices[f].Luks = IsLuks(blk.Blockdevices[f].Name)
+		if _, ok := enclosureDevices[blk.Blockdevices[f].Name]; ok {
+			blk.Blockdevices[f].Slot = enclosureDevices[blk.Blockdevices[f].Name]
+		}
+
 		//blk.Blockdevices[f].Md := isMd(blk.Blockdevices[f].Name)
 		//blk.Blockdevices[f].Lvm := isLvm(blk.Blockdevices[f].Name)
-		//blk.Blockdevices[f].Zfs := isZfs(blk.Blockdevices[f].Name)
-		//blk.Blockdevices[f].Luks := isLuks(blk.Blockdevices[f].Name)
 		//blk.Blockdevices[f].Ssd := isSsd(blk.Blockdevices[f].Name)
 		//blk.Blockdevices[f].inUse := inUse(blk.Blockdevices[f].Name)
 		//blk.Blockdevices[f].id := id(blk.Blockdevices[f].Name)
-		//blk.Blockdevices[f].slot := slot(blk.Blockdevices[f].Name)
 
 	}
 
@@ -87,14 +124,16 @@ func main() {
 	// Print the slice of structs as table, as shown above.
 	printer.Print(blk.Blockdevices)
 
-	//	fmt.Printf("\n\n\n")
-	//	fmt.Printf("blk type: %T\n", blk)
-	//	fmt.Printf("\n\n\n")
-	//
-	//	for bd := range blk.Blockdevices {
-	//		fmt.Printf("%s\n", blk.Blockdevices[bd].Name)
-	//	}
-	//
+}
+
+func IsLuks(dev string) string {
+
+	_, err := exec.Command("cryptsetup", "luksDump", fmt.Sprintf("/dev/%s", dev)).Output()
+	if err != nil {
+		return ""
+	} else {
+		return "Y"
+	}
 }
 
 func lsblk(r *regexp.Regexp) (out Lsblk) {
@@ -110,9 +149,6 @@ func lsblk(r *regexp.Regexp) (out Lsblk) {
 			out.Blockdevices = append(out.Blockdevices, tmpOut.Blockdevices[d])
 		}
 	}
-
-	fmt.Printf("out type: %T\n", tmpOut)
-	fmt.Printf("length tmpout: %d\n", len(out.Blockdevices))
 	return out
 }
 
@@ -122,7 +158,7 @@ func isMd(device string) string {
 func isLvm(device string) string {
 	return "N"
 }
-func isZfs(device string) string {
+func isZfs(blk *Lsblk) string {
 	return "N"
 }
 func isLuks(device string) string {
