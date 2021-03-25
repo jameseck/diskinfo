@@ -4,10 +4,9 @@ import (
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
-	"path/filepath"
-	//	"log"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"regexp"
 	"sort"
 	"strconv"
@@ -16,8 +15,6 @@ import (
 	"github.com/kataras/tablewriter"
 	"github.com/lensesio/tableprinter"
 )
-
-// rows << ['Disk', 'md', 'lvm', 'zfs', 'luks', 'Size', 'SSD?', 'In Use', 'Local Mount?', 'ID', 'Slot']
 
 type Blockdevice struct {
 	Name        string        `json:"name" header:"disk"`
@@ -149,12 +146,6 @@ func GetLVM(device *Blockdevice) string {
 
 func GetLuks(device *Blockdevice) string {
 
-	//	_, err := exec.Command("cryptsetup", "luksDump", fmt.Sprintf("/dev/%s", dev.Name)).Output()
-	//	if err != nil {
-	//		return ""
-	//	} else {
-	//		return "Y"
-	//	}
 	var lDevs []string
 	if device.Fstype == "crypto_LUKS" {
 		for c := range device.Children {
@@ -181,7 +172,6 @@ func lsblk(r *regexp.Regexp) (out Lsblk) {
 }
 
 func InUse(device *Blockdevice) string {
-	// Check if luks, md, pv, zfs, etc etc
 	if (device.Zfs != "") || (device.Label != "") || device.Fstype != "" || device.Mountpoint != "" || device.Md != "" || device.Lvm != "" || device.Luks != "" {
 		return "Y"
 	}
