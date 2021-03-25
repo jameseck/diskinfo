@@ -1,0 +1,47 @@
+A golang program to show disk information, specifically things like whether disks are used for:
+- ZFS pools
+- LVM VG's
+- Luks
+- MD arrays
+- Locally mounted
+
+It also shows various information like:
+- whether disks are in use
+- whether disks are spinning, ssd or nvme
+- disk size
+- If disks are in an enclosure, which slot they are in
+
+
+To use this, just clone the repo and run "go build".
+
+
+Example output from my homelab server:
+
+│────────────│────────────────│────│─────│─────────│─────────────│──────│──────────│────────│───────────────────────────────────────────│──────────────────│
+│ DISK (23)  │ MOUNTPOINTS    │ MD │ LVM │ ZFS     │ LUKS        │ SIZE │ SSD/NVME │ IN USE │ VENDOR/MODEL                              │ SLOT             │
+│────────────│────────────────│────│─────│─────────│─────────────│──────│──────────│────────│───────────────────────────────────────────│──────────────────│
+│ nvme0n1    │                │    │     │ nvmstor │             │ 1000 │ Y        │ Y      │  WDC WDS100T2B0C-00PXH0                   │                  │
+│ nvme1n1    │                │    │     │ nvmstor │             │ 1000 │ Y        │ Y      │  WDC WDS100T2B0C-00PXH0                   │                  │
+│ nvme2n1    │                │    │     │         │             │ 1000 │ Y        │        │  WDC WDS100T2B0C-00PXH0                   │                  │
+│ nvme3n1    │                │    │     │         │             │ 1000 │ Y        │        │  WDC WDS100T2B0C-00PXH0                   │                  │
+│ sda        │ /export/backup │    │     │         │ backup_disk │ 8001 │          │ Y      │ WD       Elements 25A3                    │                  │
+│ sdb        │                │    │     │ rpool   │             │  256 │ Y        │ Y      │ ATA      TOSHIBA THNSNH25                 │                  │
+│ sdc        │                │    │     │ pool1   │             │ 2000 │          │ Y      │ ATA      ST2000DM001-1CH1                 │ 0:0:16:0/Slot 01 │
+│ sdd        │                │    │     │ pool1   │             │ 2000 │          │ Y      │ ATA      ST2000DM001-1CH1                 │ 0:0:16:0/Slot 02 │
+│ sde        │                │    │     │ pool1   │             │ 2000 │          │ Y      │ ATA      SAMSUNG HD204UI                  │ 0:0:16:0/Slot 03 │
+│ sdf        │                │    │     │ pool1   │             │ 2000 │          │ Y      │ ATA      SAMSUNG HD204UI                  │ 0:0:16:0/Slot 04 │
+│ sdg        │                │    │     │ pool1   │             │ 2000 │          │ Y      │ ATA      SAMSUNG HD204UI                  │ 0:0:16:0/Slot 05 │
+│ sdh        │                │    │     │ pool1   │             │ 2000 │          │ Y      │ ATA      SAMSUNG HD204UI                  │ 0:0:16:0/Slot 06 │
+│ sdi        │                │    │     │ pool3   │             │ 4000 │          │ Y      │ NETAPP   X477_SMEGX04TA07                 │ 0:0:16:0/Slot 07 │
+│ sdj        │                │    │     │ pool3   │             │ 4000 │          │ Y      │ NETAPP   X477_SMEGX04TA07                 │ 0:0:16:0/Slot 08 │
+│ sdk        │                │    │     │ pool3   │             │ 4000 │          │ Y      │ NETAPP   X477_SMEGX04TA07                 │ 0:0:16:0/Slot 09 │
+│ sdl        │                │    │     │ pool3   │             │ 4000 │          │ Y      │ NETAPP   X477_SMEGX04TA07                 │ 0:0:16:0/Slot 10 │
+│ sdm        │                │    │     │ pool3   │             │ 4000 │          │ Y      │ NETAPP   X477_SMEGX04TA07                 │ 0:0:16:0/Slot 11 │
+│ sdn        │                │    │     │ pool3   │             │ 4000 │          │ Y      │ SEAGATE  ST4000NM0023                     │ 0:0:16:0/Slot 12 │
+│ sdo        │                │    │     │ pool2   │             │ 4000 │          │ Y      │ ATA      WDC WD4003FZEX-0                 │ 0:0:16:0/Slot 13 │
+│ sdp        │                │    │     │ pool2   │             │ 4000 │          │ Y      │ ATA      WDC WD4003FZEX-0                 │ 0:0:16:0/Slot 14 │
+│ sdq        │                │    │     │ pool2   │             │ 4000 │          │ Y      │ ATA      WDC WD4003FZEX-0                 │ 0:0:16:0/Slot 15 │
+│ sdr        │                │    │     │ pool2   │             │ 4000 │          │ Y      │ ATA      WDC WD4003FZEX-0                 │ 0:0:16:0/Slot 16 │
+│ sds        │                │    │     │ rpool   │             │  256 │ Y        │ Y      │ ATA      TOSHIBA THNSNH25                 │                  │
+│────────────│────────────────│────│─────│─────────│─────────────│──────│──────────│────────│───────────────────────────────────────────│──────────────────│
+
