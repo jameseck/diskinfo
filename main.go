@@ -33,7 +33,7 @@ type Blockdevice struct {
 	Ssd         string        `header:"ssd/nvme"`
 	InUse       string        `header:"in use"`
 	VendorModel string        `header:"vendor/model"`
-	Slot        string        `header:"slot"`
+	Slot        string        `header:"encl/slot"`
 	Children    []Blockdevice `json:"children"`
 }
 
