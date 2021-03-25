@@ -24,7 +24,7 @@ type Blockdevice struct {
 	Fstype      string        `json:"fstype"`
 	Label       string        `json:"label"`
 	Uuid        string        `json:"uuid"`
-	Mountpoint  string        `json:"mountpoint" header:"mountpoint"`
+	Mountpoint  string        `json:"mountpoint" header:"mountpoints"`
 	Md          string        `header:"md"`
 	Lvm         string        `header:"lvm"`
 	Zfs         string        `header:"zfs"`
@@ -68,6 +68,14 @@ func main() {
 			blk.Blockdevices[f].Zfs = blk.Blockdevices[f].Label
 		}
 
+		if blk.Blockdevices[f].Fstype == "linux_raid_member" {
+			blk.Blockdevices[f].Md = fmt.Sprintf("md%s", blk.Blockdevices[f].Label)
+		}
+
+		blk.Blockdevices[f].Lvm = GetLVM(&blk.Blockdevices[f])
+
+		blk.Blockdevices[f].Mountpoint = GetMountpoints(&blk.Blockdevices[f])
+
 		y, _ := ioutil.ReadFile(fmt.Sprintf("/sys/block/%s/queue/rotational", blk.Blockdevices[f].Name))
 		s := strings.Replace(string(y), "\n", "", -1)
 		if s == "1" {
@@ -88,16 +96,12 @@ func main() {
 			}
 		}
 
-		blk.Blockdevices[f].Luks = IsLuks(blk.Blockdevices[f].Name)
+		blk.Blockdevices[f].Luks = GetLuks(&blk.Blockdevices[f])
+
 		if _, ok := enclosureDevices[blk.Blockdevices[f].Name]; ok {
 			blk.Blockdevices[f].Slot = enclosureDevices[blk.Blockdevices[f].Name]
 		}
 
-		//blk.Blockdevices[f].Md := isMd(blk.Blockdevices[f].Name)
-		//blk.Blockdevices[f].Lvm := isLvm(blk.Blockdevices[f].Name)
-		//blk.Blockdevices[f].Ssd := isSsd(blk.Blockdevices[f].Name)
-		//blk.Blockdevices[f].inUse := inUse(blk.Blockdevices[f].Name)
-		//blk.Blockdevices[f].id := id(blk.Blockdevices[f].Name)
 		blk.Blockdevices[f].InUse = InUse(&blk.Blockdevices[f])
 
 	}
@@ -119,14 +123,45 @@ func main() {
 
 }
 
-func IsLuks(dev string) string {
-
-	_, err := exec.Command("cryptsetup", "luksDump", fmt.Sprintf("/dev/%s", dev)).Output()
-	if err != nil {
-		return ""
-	} else {
-		return "Y"
+func GetMountpoints(device *Blockdevice) string {
+	var mounts []string
+	if device.Mountpoint != "" {
+		mounts = append(mounts, device.Mountpoint)
 	}
+	for c := range device.Children {
+		if device.Children[c].Mountpoint != "" {
+			mounts = append(mounts, device.Children[c].Mountpoint)
+		}
+	}
+	return strings.Join(mounts, ",")
+}
+
+func GetLVM(device *Blockdevice) string {
+	var vgs []string
+	for c := range device.Children {
+		if device.Children[c].Fstype == "LVM2_member" {
+			pv, _ := exec.Command("pvs", "--separator", ",", "-o", "pv_name,vg_name", "--noheadings", fmt.Sprintf("/dev/%s", device.Children[c].Name)).Output()
+			vgs = append(vgs, strings.Split(strings.Replace(string(pv), "\n", "", -1), ",")[1])
+		}
+	}
+	return strings.Join(vgs, ",")
+}
+
+func GetLuks(device *Blockdevice) string {
+
+	//	_, err := exec.Command("cryptsetup", "luksDump", fmt.Sprintf("/dev/%s", dev.Name)).Output()
+	//	if err != nil {
+	//		return ""
+	//	} else {
+	//		return "Y"
+	//	}
+	var lDevs []string
+	if device.Fstype == "crypto_LUKS" {
+		for c := range device.Children {
+			lDevs = append(lDevs, device.Children[c].Name)
+		}
+	}
+	return strings.Join(lDevs, ",")
 }
 
 func lsblk(r *regexp.Regexp) (out Lsblk) {
@@ -171,10 +206,6 @@ func getDiskSizeGB(device string) (size string, err error) {
 	f, _ := ioutil.ReadFile(fmt.Sprintf("/sys/block/%s/size", device))
 	s := strings.Replace(string(f), "\n", "", -1)
 	x, _ := strconv.Atoi(s)
-	//fmt.Printf("Device size: %d\n", x)
-
 	size = strconv.Itoa(x * 512 / 1000 / 1000 / 1000)
-	//fmt.Printf("SIZE: %d\n", size)
-
 	return size, err
 }
